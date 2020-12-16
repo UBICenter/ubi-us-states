@@ -9,7 +9,7 @@ person = pd.read_csv("asec1719.csv.gz")
 person.columns = person.columns.str.lower()
 
 person.adjginc.replace({99999999: 0}, inplace=True)
-person.asecwt /= 3
+person.asecwt /= 3  # Since there are three years.
 
 person["age_group"] = np.where(person.age > 17, "adult", "child")
 
@@ -49,7 +49,8 @@ def pov(df, ubi):
     # Recalculate SPM poverty flags.
     new_pov = new_spmtotres < df.spmthresh
     # Return weighted average of the SPM flags (poverty rate).
-    return (new_pov * df.asecwt).sum() / df.asecwt.sum()
+    result = (new_pov * df.asecwt).sum() / df.asecwt.sum()
+    return pd.Series({"poverty_rate": result})
 
 
 age = person.groupby(["age_group"]).apply(lambda x: pov(x, 1000))
@@ -57,3 +58,22 @@ age = person.groupby(["age_group"]).apply(lambda x: pov(x, 1000))
 age_state = person.groupby(["age_group", "statefip"]).apply(
     lambda x: pov(x, 1000)
 )
+
+UBI_AMOUNTS = np.arange(0, 12001, 1000)
+
+
+def pov_groupby(groupby, ubi_amounts=UBI_AMOUNTS):
+    l = []
+
+    for i in UBI_AMOUNTS:
+        tmp_age = pd.DataFrame(
+            person.groupby(groupby).apply(lambda x: pov(x, i))
+        )
+        tmp_age["ubi"] = i
+        l.append(tmp_age)
+
+    return pd.concat(l)
+
+
+pov_groupby("age_group").to_csv("age_all.csv")
+pov_groupby(["age_group", "statefip"]).to_csv("age_state_all.csv")
